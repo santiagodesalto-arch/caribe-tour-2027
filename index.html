@@ -43,6 +43,16 @@ h1 .c{color:var(--coral)} h1 .s{color:var(--sun)} h1 .t{color:var(--teal)}
 .count{text-align:right;font-family:var(--mono);font-size:11px;color:var(--muted);line-height:1.2}
 .count b{display:block;font-family:var(--display);font-weight:400;font-size:34px;color:var(--fg)}
 
+/* Cuenta regresiva */
+.cd{margin:16px 0 0;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px 14px;display:grid;gap:8px}
+.cd-lbl{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.cd-lbl span:first-child{color:var(--coral)}
+.cd-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.cd-row div{background:var(--soft);border-radius:10px;padding:8px 4px 6px;display:grid;justify-items:center}
+.cd-row b{font-family:var(--display);font-weight:400;font-size:clamp(30px,8vw,44px);line-height:1;font-variant-numeric:tabular-nums}
+.cd-row small{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.cd-done{grid-column:1/-1;font-family:var(--display);font-size:36px;text-align:center;color:var(--teal)}
+
 /* Pestañas */
 .tabs{display:flex;gap:6px;margin:18px 0 0;padding:4px;background:var(--soft);border-radius:999px;width:max-content}
 .tab{border:0;background:none;padding:7px 16px;border-radius:999px;cursor:pointer;font-weight:600;font-size:14px;color:var(--muted)}
@@ -154,8 +164,17 @@ footer{font-size:12px;color:var(--muted);margin-top:24px}
       <h1><span class="c">Caribe</span> <span class="s">Tour</span> <span class="t">2027</span></h1>
       <p class="sub">MSC Opera · 15 al 24 de agosto</p>
     </div>
-    <div class="count" id="count"></div>
   </header>
+
+  <div class="cd" role="timer" aria-label="Tiempo hasta el vuelo de ida">
+    <div class="cd-lbl"><span>Despegue</span><span>Dom 15 ago · 02:45 · EZE → PUJ</span></div>
+    <div class="cd-row" id="cd">
+      <div><b id="cd-d">–</b><small>días</small></div>
+      <div><b id="cd-h">–</b><small>horas</small></div>
+      <div><b id="cd-m">–</b><small>min</small></div>
+      <div><b id="cd-s">–</b><small>seg</small></div>
+    </div>
+  </div>
 
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="tab-ruta" aria-selected="true" aria-controls="ruta">Recorrido</button>
@@ -311,9 +330,14 @@ $("tab-ruta").onclick=()=>tab("ruta");$("tab-datos").onclick=()=>tab("datos");
 if(location.hash==="#datos")tab("datos");
 window.addEventListener("hashchange",()=>tab(location.hash==="#datos"?"datos":"ruta"));
 
-// Cuenta regresiva
-const left=Math.ceil((new Date("2027-08-15T02:45:00-03:00")-Date.now())/864e5);
-$("count").innerHTML=left>0?`<b>${left}</b>días`:`<b>¡Ya!</b>buen viaje`;
+// Cuenta regresiva al vuelo de ida (hora de Argentina, UTC-3)
+const T=new Date("2027-08-15T02:45:00-03:00").getTime();
+const pad=n=>String(n).padStart(2,"0");
+function tick(){const ms=T-Date.now();
+  if(ms<=0){$("cd").innerHTML='<div class="cd-done">¡Buen viaje!</div>';return false}
+  const s=Math.floor(ms/1000);$("cd-d").textContent=Math.floor(s/86400);$("cd-h").textContent=pad(Math.floor(s%86400/3600));
+  $("cd-m").textContent=pad(Math.floor(s%3600/60));$("cd-s").textContent=pad(s%60);return true}
+if(tick()){const iv=setInterval(()=>{if(!tick())clearInterval(iv)},1000)}
 
 // Pendientes (se guardan en este navegador)
 let saved={};try{saved=JSON.parse(localStorage.getItem("todo")||"{}")}catch(e){}
