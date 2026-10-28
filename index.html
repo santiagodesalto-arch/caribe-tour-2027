@@ -168,8 +168,10 @@ footer{font-size:12px;color:var(--muted);margin-top:24px}
 .lb-head{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .lb-head b{font-family:var(--display);font-weight:400;font-size:30px;line-height:1}
 .lb-x{background:none;border:1px solid #3a5560;color:#eef0e4;border-radius:999px;width:40px;height:40px;font-size:20px;cursor:pointer}
-.lb-stage{position:relative;border-radius:12px;overflow:hidden;background:#0b1418;aspect-ratio:3/2;max-height:72vh;width:100%;touch-action:pan-y}
-.lb-stage img{width:100%;height:100%;object-fit:contain;display:block}
+.lb-stage{position:relative;border-radius:12px;overflow:hidden;background:#0b1418;height:min(72vh,680px);width:100%;touch-action:none;cursor:zoom-in;user-select:none;-webkit-user-select:none}
+.lb-stage.zoomed{cursor:grab}
+.lb-stage img{width:100%;height:100%;object-fit:contain;display:block;transform-origin:center;will-change:transform;-webkit-user-drag:none;pointer-events:none}
+.lb-hint{display:block;font-family:var(--mono);font-size:11px;color:#93aba9;margin-top:4px}
 .lb-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:0;background:rgba(12,24,29,.75);color:#eef0e4;font-size:22px;cursor:pointer}
 .lb-prev{left:10px}.lb-next{right:10px}
 .lb-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-family:var(--mono);font-size:12px;color:#93aba9}
@@ -258,7 +260,7 @@ footer{font-size:12px;color:var(--muted);margin-top:24px}
 
 <div class="lb" id="lb" hidden role="dialog" aria-modal="true" aria-labelledby="lb-t">
   <div class="lb-box">
-    <div class="lb-head"><b id="lb-t"></b><button type="button" class="lb-x" id="lb-x" aria-label="Cerrar">×</button></div>
+    <div class="lb-head"><div><b id="lb-t"></b><small class="lb-hint">Zoom: doble toque, pellizcar o rueda del mouse</small></div><button type="button" class="lb-x" id="lb-x" aria-label="Cerrar">×</button></div>
     <div class="lb-stage" id="lb-stage"><img id="lb-img" alt=""><button type="button" class="lb-nav lb-prev" id="lb-prev" aria-label="Foto anterior">‹</button><button type="button" class="lb-nav lb-next" id="lb-next" aria-label="Foto siguiente">›</button></div>
     <div class="lb-foot"><span id="lb-cr"></span><div class="lb-dots" id="lb-dots"></div></div>
   </div>
@@ -396,7 +398,7 @@ $("remeras").addEventListener("click",e=>{const b=e.target.closest("[data-ph]");
 
 // Carrusel de fotos
 const lb=$("lb"),lbImg=$("lb-img");let lbSet=[],lbI=0,lbBack=null;
-function lbShow(i){lbI=(i+lbSet.length)%lbSet.length;const f=lbSet[lbI];lbImg.src=f.src;lbImg.alt=$("lb-t").textContent+" · foto "+(lbI+1);
+function lbShow(i){zReset();lbI=(i+lbSet.length)%lbSet.length;const f=lbSet[lbI];lbImg.src=f.src;lbImg.alt=$("lb-t").textContent+" · foto "+(lbI+1);
   $("lb-cr").innerHTML=f.page?`Foto: ${f.by} · ${f.lic} · <a href="${f.page}" target="_blank" rel="noopener">Wikimedia ↗</a>`:f.by;
   $("lb-dots").innerHTML=lbSet.map((_,k)=>`<span class="${k===lbI?"on":""}"></span>`).join("")}
 function lbOpen(key,title,btn,i){lbSet=PHOTOS[key];lbBack=btn;$("lb-t").textContent=title;lbShow(i||0);lb.hidden=false;$("lb-x").focus()}
@@ -415,8 +417,26 @@ document.querySelectorAll(".hero .track").forEach(tr=>{const dots=tr.parentEleme
 $("lb-x").onclick=lbClose;$("lb-prev").onclick=()=>lbShow(lbI-1);$("lb-next").onclick=()=>lbShow(lbI+1);
 lb.addEventListener("click",e=>{if(e.target===lb)lbClose()});
 document.addEventListener("keydown",e=>{if(lb.hidden)return;if(e.key==="Escape")lbClose();if(e.key==="ArrowLeft")lbShow(lbI-1);if(e.key==="ArrowRight")lbShow(lbI+1)});
-let tx=null;$("lb-stage").addEventListener("touchstart",e=>{tx=e.touches[0].clientX},{passive:true});
-$("lb-stage").addEventListener("touchend",e=>{if(tx==null)return;const d=e.changedTouches[0].clientX-tx;if(Math.abs(d)>40)lbShow(lbI+(d<0?1:-1));tx=null});
+// Zoom en el visor: pellizcar, doble toque o rueda; arrastrar para moverse; deslizar para cambiar de foto
+const st=$("lb-stage");let zs=1,zx=0,zy=0,ptrs=new Map(),g=null,lastTap=0,swipeX=null;
+function zApply(anim){lbImg.style.transition=anim?"transform .18s":"none";lbImg.style.transform=`translate(${zx}px,${zy}px) scale(${zs})`;st.classList.toggle("zoomed",zs>1)}
+function zClamp(){const r=st.getBoundingClientRect(),mx=r.width*(zs-1)/2,my=r.height*(zs-1)/2;zx=Math.max(-mx,Math.min(mx,zx));zy=Math.max(-my,Math.min(my,zy))}
+function zReset(){zs=1;zx=0;zy=0;zApply(false)}
+function zTo(sc,cx,cy){const r=st.getBoundingClientRect(),px=cx-r.left-r.width/2,py=cy-r.top-r.height/2,k=sc/zs;
+  zx=px-(px-zx)*k;zy=py-(py-zy)*k;zs=sc;if(zs<=1.01){zs=1;zx=0;zy=0}zClamp()}
+st.addEventListener("pointerdown",e=>{if(e.target.closest(".lb-nav"))return;try{st.setPointerCapture(e.pointerId)}catch(_){}
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===2){const [a,b]=[...ptrs.values()];g={d:Math.hypot(a.x-b.x,a.y-b.y)||1,s:zs};swipeX=null}
+  else if(ptrs.size===1){g=null;swipeX=zs===1?e.clientX:null;const now=Date.now();
+    if(now-lastTap<300){zTo(zs>1?1:2.5,e.clientX,e.clientY);zApply(true);lastTap=0;swipeX=null}else lastTap=now}});
+st.addEventListener("pointermove",e=>{if(!ptrs.has(e.pointerId))return;const prev=ptrs.get(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===2&&g){const [a,b]=[...ptrs.values()];const d=Math.hypot(a.x-b.x,a.y-b.y);zTo(Math.min(5,Math.max(1,g.s*d/g.d)),(a.x+b.x)/2,(a.y+b.y)/2);zApply(false)}
+  else if(ptrs.size===1&&zs>1){zx+=e.clientX-prev.x;zy+=e.clientY-prev.y;zClamp();zApply(false)}});
+function zUp(e){if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);
+  if(ptrs.size===0&&swipeX!=null&&zs===1){const d=e.clientX-swipeX;if(Math.abs(d)>40){lastTap=0;lbShow(lbI+(d<0?1:-1))}}
+  if(ptrs.size<2)g=null;if(ptrs.size===0)swipeX=null}
+st.addEventListener("pointerup",zUp);st.addEventListener("pointercancel",zUp);
+st.addEventListener("wheel",e=>{e.preventDefault();zTo(Math.min(5,Math.max(1,zs*(e.deltaY<0?1.25:0.8))),e.clientX,e.clientY);zApply(false)},{passive:false});
 </script>
 
 </body>
